@@ -1,47 +1,124 @@
-# Introduction to GitHub
+# KODOSEQ
 
-_Get started using GitHub in less than an hour._
+**Generative MIDI Sequencer Engine**
 
-## Welcome
-
-People use GitHub to build some of the most advanced technologies in the world. Whether you’re visualizing data or building a new game, there’s a whole community and set of tools on GitHub that can help you do it even better. GitHub Skills’ “Introduction to GitHub” exercise guides you through everything you need to start contributing in less than an hour.
-
-- **Who is this for**: New developers, new GitHub users, and students.
-- **What you'll learn**: We'll introduce repositories, branches, commits, and pull requests.
-- **What you'll build**: We'll make a short Markdown file you can use as your [profile README](https://docs.github.com/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme).
-- **Prerequisites**: None. This exercise is a great introduction for your first day on GitHub.
-- **How long**: This exercise takes less than one hour to complete.
-
-In this exercise, you will:
-
-1. Create a branch
-2. Commit a file
-3. Open a pull request
-4. Merge your pull request
-
-### How to start this exercise
-
-Simply copy the exercise to your account, then give your favorite Octocat (Mona) **about 20 seconds** to prepare the first lesson, then **refresh the page**.
-
-[![](https://img.shields.io/badge/Copy%20Exercise-%E2%86%92-1f883d?style=for-the-badge&logo=github&labelColor=197935)](https://github.com/new?template_owner=skills&template_name=introduction-to-github&owner=%40me&name=skills-introduction-to-github&description=Exercise:+Introduction+to+GitHub&visibility=public)
-
-<details>
-<summary>Having trouble? 🤷</summary><br/>
-
-When copying the exercise, we recommend the following settings:
-
-- For owner, choose your personal account or an organization to host the repository.
-
-- We recommend creating a public repository, since private repositories will use Actions minutes.
-
-If the exercise isn't ready in 20 seconds, please check the [Actions](../../actions) tab.
-
-- Check to see if a job is running. Sometimes it simply takes a bit longer.
-
-- If the page shows a failed job, please submit an issue. Nice, you found a bug! 🐛
-
-</details>
+KODOSEQ is a realtime generative MIDI sequencer designed as a creative instrument for live performance and studio use. It generates musical structures using algorithmic pattern generation, probabilistic triggers, harmonic rules, and controlled randomness.
 
 ---
 
-&copy; 2025 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
+## Architecture
+
+```
+kodoseq/
+├── core/
+│   ├── clock/          # BPM clock, swing, step/bar events
+│   ├── pattern/        # Step sequencer, polyrhythm, probability gates
+│   ├── harmony/        # Scale/mode engine, chord voicings
+│   ├── generators/     # Melody generator (direction, density, motifs)
+│   ├── drums/          # Drum pattern engine, fills, polyrhythm
+│   ├── randomizer/     # Constrained mutation, pattern morphing
+│   ├── midi/           # MIDI output (rtmidi + mock backend)
+│   └── presets/        # JSON preset save/load/overwrite
+├── state.py            # Central EngineState dataclasses
+├── engine.py           # KodoSeq main coordinator
+└── tests/              # Pytest test suite
+```
+
+## Design Principles
+
+- **Realtime first** — no blocking in critical loops, clock runs in a dedicated thread
+- **Musical control over randomness** — all randomization respects scale, harmony, and density limits
+- **Modular architecture** — each subsystem is independently testable with clean interfaces
+- **No stuck notes** — MIDI engine tracks all active notes and can panic/release at any time
+- **Portable presets** — complete state serialized as JSON
+
+## Modules
+
+### Clock Engine
+- BPM control, swing, step resolution (steps/bar), loop length
+- Emits tick, step, and bar events to registered callbacks
+- Deterministic monotonic timing with drift compensation
+
+### Harmony Engine
+- Root note + scale (major, minor, dorian, phrygian, mixolydian, lydian, locrian, pentatonic, chromatic)
+- Chord voicings: triad, seventh, extended, sus, add
+- Provides `allowed_notes()`, `notes_in_range()`, `nearest_in_scale()`
+
+### Pattern Engine
+- Variable pattern length per track (polyrhythm)
+- Per-step: active flag, probability, velocity, velocity variation, skip
+- Multiple tracks at independent lengths
+
+### Melody Generator
+- Directions: ascending, descending, random, pendulum
+- Density gate, repetition bias, note range
+- Motif generation and constrained note mutation
+
+### Drum Generator
+- Channels: kick, snare, hihat, percussion
+- Per-channel: pattern length, per-step probability, velocity variation, accent, microtiming
+- Fill mode (density boost), pattern mutation, polyrhythm
+
+### Randomization Engine
+- Pattern randomization, melody parameter randomization, drum randomization
+- Pattern morphing (gradual blend between states)
+- Chaos burst for controlled momentary chaos
+- All mutations constrained to musical boundaries
+
+### MIDI Engine
+- Abstract `MidiBackend` interface → `MockMidiBackend` (tests) or `RtMidiBackend` (real hardware)
+- Multi-channel routing (melody, bass, drums)
+- Stuck note prevention via active note tracking
+- Retrigger handling (note_off before note_on on same channel/note)
+
+### Preset System
+- Save/load/overwrite/delete presets as `.kseq` JSON files
+- Full `EngineState` roundtrip serialization
+- Schema versioning for forward compatibility
+
+## Quick Start
+
+```python
+from kodoseq import KodoSeq
+
+engine = KodoSeq()
+engine.set_bpm(120)
+engine.set_scale("dorian")
+engine.set_root(62)      # D
+engine.set_density(0.7)
+engine.start()
+
+# ... live parameter control ...
+
+engine.save_preset("my_groove")
+engine.stop()
+```
+
+## Requirements
+
+- Python 3.9+
+- No required runtime dependencies (stdlib only)
+- Optional: `python-rtmidi` for real MIDI hardware output
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest kodoseq/tests/
+```
+
+## Testing
+
+104 tests covering:
+- Clock accuracy and event dispatch
+- Harmony scale/mode correctness
+- Pattern engine probability, polyrhythm, velocity
+- Melody direction, density, scale constraints
+- Drum channel probability, accents, fills, polyrhythm
+- Randomization boundary enforcement
+- MIDI engine stuck-note prevention, retrigger
+- Preset save/load/overwrite/roundtrip integrity
+
+---
+
+&copy; 2025 KODOSEQ &bull; [MIT License](LICENSE)
